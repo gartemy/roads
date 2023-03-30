@@ -1,0 +1,81 @@
+version: '3.0'
+
+services:
+  postgres:
+    container_name: postgres
+    image: postgres:14
+    env_file:
+      - development.env
+    ports:
+      - "5432:5432"
+    environment:
+      PG_DATA: /var/lib/postgresql/data
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: 'no'
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}" ]
+      interval: 5s
+      timeout: 10s
+      retries: 120
+    networks:
+      net:
+        ipv4_address: 192.168.240.5
+
+  migrations:
+    container_name: migrations
+    image: gartemy/roads-migrations
+    env_file:
+      - development.env
+    command: npm run migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    networks:
+      net:
+        ipv4_address: 192.168.240.4
+
+  backend:
+    container_name: backend
+    image: gartemy/roads-backend
+    env_file:
+      - development.env
+    volumes:
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: npm run start
+    depends_on:
+      - migrations
+    restart: 'no'
+    networks:
+      net:
+        ipv4_address: 192.168.240.3
+
+  frontend:
+    container_name: frontend
+    image: gartemy/roads-frontend
+    env_file:
+      - development.env
+    volumes:
+      - /app/node_modules
+    ports:
+      - "8080:8080"
+    command: npm run dev
+    depends_on:
+      - backend
+    restart: 'no'
+    networks:
+      net:
+        ipv4_address: 192.168.240.2
+
+volumes:
+  pgdata:
+
+networks:
+  net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.240.0/24
